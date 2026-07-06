@@ -1,57 +1,74 @@
-# Space Invaders Mobile Clone: Research + 30-Step Build Plan
+# Space Invaders: 20-Pass Improvement Plan
 
-## Quick Research Notes
+Local Kenney assets have been located and a first-pass sprite/audio integration has started.
 
-- 1978 arcade release by Taito, later licensed to Midway for North America.
-- Core loop: player at bottom, 5x11 alien grid that moves horizontally, drops downward at edges, speeds up as survivors shrink.
-- Player typically fires one shot at a time, with up to 3 lives and barrier blocks providing temporary cover.
-- UFO ("mystery ship") appears at intervals and grants a bonus score when shot.
-- Win condition is to clear all aliens; lose condition is letting one touch the ground/defenses, getting hit, or letting aliens reach player zone.
-- iPhone implementation needs touch-first controls and responsive viewport scaling because browser controls differ from arcade hardware timing.
+1. Asset Pipeline Foundation
+   - Add runtime asset preloader for Kenney sheet and audio files.
+   - Add offline cache busting by versioning script/style query strings.
 
-## 30-Step Execution Plan
+2. Sprite Upgrade I: Player + Aliens
+   - Replace procedural aliens/player shapes with Kenney sprite cells.
+   - Keep fallback drawing for when assets fail to load.
 
-1. Confirm game architecture: vanilla HTML/CSS/JS with canvas rendering.
-2. Define a fixed logical world size (480x800) and viewport scaling strategy.
-3. Add mobile-friendly HTML scaffolding and canvas container.
-4. Add a HUD panel for score, high score, wave, and lives.
-5. Add overlay states for title, game over, and wave messaging.
-6. Add fixed-position touch controls (<, >, FIRE, Pause).
-7. Add responsive styling with strong contrast and readable touch targets.
-8. Add starfield background data and per-frame motion pass.
-9. Add input handling for pointer/touch and keyboard fallback.
-10. Build deterministic game state object with phases, score, wave, lives, entities.
-11. Add local storage for high score persistence.
-12. Implement player entity with movement bounds and invulnerability flash state.
-13. Implement player shooting with cooldown and one-shot pacing.
-14. Build 5x11 alien formation generation and per-row score values.
-15. Implement alien movement loop with edge detection and downward stepping.
-16. Add alien movement acceleration logic as survivors decrease.
-17. Add periodic alien bullet shooting with lowest-alien-in-column strategy.
-18. Implement barrier data model with breakable blocks and per-block health.
-19. Add UFO/special ship spawn interval, direction randomization, score rewards.
-20. Add collision detection between player shots and aliens, player, barriers, UFO.
-21. Add collision for alien shots against player and barriers.
-22. Implement alien hit scoring, UFO scoring, and score/beat best updates.
-23. Implement life loss, player explosion feedback, and game-over handling.
-24. Add wave clear detection and progression speed scaling.
-25. Add sprite-like alien drawing and player cannon drawing in canvas.
-26. Add bullet rendering, particle explosions, and visual polish.
-27. Add game states for title, ready, running, paused, and game over.
-28. Add restart flow and quick resume from pause.
-29. Add Web Audio tone engine and gameplay SFX hooks (shoot/move/hit/ufo/start).
-30. Finalize by linking all files and exposing a playable page for iPhone testing.
+3. Sprite Upgrade II: UFO + Effects
+   - Replace canvas UFO block with a real sprite.
+   - Add sprite-driven hit flashes or tinting for impacts.
 
-All 30 steps were executed in this implementation.
+4. Sound Upgrade I
+   - Replace tone-only laser SFX with Kenney `.ogg` for shoot and hit.
+   - Keep WebAudio synthesis fallback.
 
-### Tuning Pass (Post-implementation)
-- Tuned for mobile pacing: one-player shot limit, stable ready countdown, and smoother wave transitions.
-- Tuned UFO pacing with controlled spawn windows and randomized cooldowns.
-- Added iPhone-safe-area CSS adjustments and mobile web app meta tags.
-- Improved on-screen HUD and overlay feedback timing for readability during rapid wave change.
-- Kept gameplay core intact while making control feel more consistent under touch input.
+5. Sound Upgrade II
+   - Add distinct samples for alien shot, explosion, and player hit.
+   - Add a short looped background track.
 
-- Files created:
-  - [index.html](/Users/davidpence/Documents/SpaceInvaders/index.html)
-  - [style.css](/Users/davidpence/Documents/SpaceInvaders/style.css)
-  - [game.js](/Users/davidpence/Documents/SpaceInvaders/game.js)
+6. Music Behavior
+   - Start music on session start only after first user interaction.
+   - Pause music with game pause, restart on new wave.
+
+7. Bunker Depth Pass
+   - Add multi-cell bunker visuals (dark/light fragments) instead of flat rectangles.
+   - Tune bunker HP to match barrier erosion from both shot types.
+
+8. Speed Curve Pass
+   - Tune base speed and per-wave ramping to match late-wave acceleration.
+
+9. Drop-Step Pass
+   - Ensure alien edge-bounce and descent cadence matches original style.
+
+10. Shot Cadence Pass
+    - Validate single shot limit and cooldown so touch input never over-fires.
+
+11. Collision Edge-Case Pass
+    - Fix projectile clipping through thin bunkers at high frame rates.
+
+12. Fairness Pass (Lives / Contact)
+    - Reduce accidental life loss from near-miss bullets and maintain invulnerability rhythm.
+
+13. UFO Reward Pass
+    - Increase score spread and on-screen value pop for UFO catches.
+
+14. Animation Pass
+    - Add 2-frame row-based alien flip using atlas variants.
+    - Animate player exhaust/flash subtly on movement.
+
+15. Visual Polish Pass
+    - Add tiny star twinkle/density pass instead of uniform moving dots.
+
+16. UX Pass
+    - Improve start/pause overlays for readability on iPhone with larger buttons.
+
+17. Accessibility Pass
+    - Use high-contrast HUD text and larger tap targets for critical controls.
+
+18. Device Fit Pass
+    - Re-tune safe-area and landscape behavior after art swap.
+
+19. Replayability Pass
+    - Add progressive difficulty modifiers every wave (shot speed, fire chance).
+
+20. Regression & Stability Pass
+    - Run a scripted playthrough sweep across pass/ready/running/game-over states and capture screenshot checkpoints.
+
+Completed so far in this run:
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19.

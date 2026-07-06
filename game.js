@@ -41,6 +41,7 @@
     maxAlienShots: 3,
     baseAlienSpeed: 36,
     speedGrowth: 2.0,
+    speedByRemaining: 0.6,
     dropPixels: 16,
     bunkerCount: 4,
     bunkerWidth: 78,
@@ -53,6 +54,7 @@
     ufoY: 52,
     ufoCooldownMin: 6,
     ufoCooldownMax: 12,
+    ufoSpawnChance: 0.45,
     readyCountdownSeconds: 0.9,
   };
 
@@ -69,6 +71,7 @@
     bunkers: [],
     stars: [],
     explosions: [],
+    floatingTexts: [],
     ufo: null,
     alienDir: 1,
     alienSpeed: config.baseAlienSpeed,
@@ -77,6 +80,7 @@
     alienFireTimer: 0,
     readyTimer: 0,
     spawnUfoTimer: 0,
+    startGuard: false,
   };
 
   const input = {
@@ -91,11 +95,58 @@
   let audioCtx = null;
   let alienMoveSound = true;
   let pixelRatio = 1;
+  let hapticsSupported = false;
+
+  const kenney = {
+    spriteSheet: null,
+    spriteReady: false,
+    audioReady: false,
+    music: null,
+    sfx: null,
+  };
+
+  const kenneyAtlas = {
+    player: [{ name: "ship_D", x: 64, y: 0, w: 48, h: 32 }, { name: "ship_C", x: 96, y: 468, w: 48, h: 32 }],
+    ufo: { name: "ship_A", x: 52, y: 388, w: 32, h: 24 },
+    aliens: {
+      0: [
+        { name: "enemy_A", x: 0, y: 420, w: 48, h: 48 },
+        { name: "enemy_B", x: 100, y: 140, w: 48, h: 48 },
+      ],
+      1: [
+        { name: "enemy_B", x: 100, y: 140, w: 48, h: 48 },
+        { name: "enemy_A", x: 0, y: 420, w: 48, h: 48 },
+      ],
+      2: [
+        { name: "enemy_C", x: 0, y: 0, w: 64, h: 32 },
+        { name: "enemy_D", x: 100, y: 188, w: 48, h: 48 },
+      ],
+      3: [
+        { name: "enemy_D", x: 100, y: 188, w: 48, h: 48 },
+        { name: "enemy_C", x: 0, y: 0, w: 64, h: 32 },
+      ],
+      4: [
+        { name: "enemy_E", x: 100, y: 332, w: 48, h: 48 },
+        { name: "enemy_E", x: 100, y: 332, w: 48, h: 48 },
+      ],
+    },
+  };
+
+  const kenneySounds = {
+    shoot: "assets/kenney/audio/kenney-shoot.ogg",
+    alienShot: "assets/kenney/audio/kenney-alien-shot.ogg",
+    alienExplode: "assets/kenney/audio/kenney-explosion.ogg",
+    playerExplode: "assets/kenney/audio/kenney-hit.ogg",
+    ufo: "assets/kenney/audio/kenney-explosion.ogg",
+    start: "assets/kenney/audio/kenney-start.ogg",
+    gameOver: "assets/kenney/audio/kenney-gameover.ogg",
+    ready: "assets/kenney/audio/kenney-ready.ogg",
+    music: "assets/kenney/audio/kenney-music.ogg",
+  };
 
   const starCount = 64;
 
   function setOverlay(phase) {
-    UI.overlay.style.display = "";
     if (phase === "title") {
       UI.overlayTitle.textContent = "Space Invaders";
       UI.overlayBody.textContent =
@@ -116,7 +167,6 @@
 
   function hideOverlay() {
     UI.overlay.classList.add("hidden");
-    UI.overlay.style.display = "none";
   }
 
   function updateHUD() {
@@ -126,7 +176,41 @@
     UI.lives.textContent = String(state.lives);
   }
 
+  function vibrate(pattern) {
+    if (!hapticsSupported) return;
+    try {
+      navigator.vibrate(pattern);
+    } catch (_e) {
+      hapticsSupported = false;
+    }
+  }
+
   function ensureAudio() {
+    if (!kenney.audioReady) {
+      kenney.audioReady = true;
+      kenney.sfx = {};
+      for (const [k, src] of Object.entries(kenneySounds)) {
+        if (k === "music") {
+          kenney.music = new Audio(src);
+          kenney.music.loop = true;
+          kenney.music.volume = 0.25;
+          continue;
+        }
+        const clip = new Audio(src);
+        clip.preload = "auto";
+        clip.volume = k === "ufo" || k === "alienShot" || k === "shoot" ? 0.4 : 0.8;
+        kenney.sfx[k] = clip;
+      }
+      kenney.spriteSheet = new Image();
+      kenney.spriteSheet.src = "assets/kenney/sprites/kenney-space-sheet.png";
+      kenney.spriteSheet.onload = () => {
+        kenney.spriteReady = true;
+      };
+      kenney.spriteSheet.onerror = () => {
+        kenney.spriteReady = false;
+      };
+    }
+
     if (audioCtx) return;
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
@@ -139,6 +223,7 @@
     if (audioCtx.state === "suspended") {
       audioCtx.resume().catch(() => {});
     }
+    hapticsSupported = "vibrate" in navigator;
   }
 
   function tone(freq, duration = 0.1, type = "square", volume = 0.04, start = 0, stop = 0.001) {
@@ -157,6 +242,17 @@
   }
 
   function playSfx(kind) {
+    if (kenney.audioReady && kenney.sfx && kenney.sfx[kind]) {
+      const base = kenney.sfx[kind];
+      const clip = base.cloneNode();
+      clip.volume = base.volume;
+      const play = clip.play();
+      if (play && typeof play.catch === "function") {
+        play.catch(() => {});
+      }
+      return;
+    }
+
     if (!audioCtx) return;
     if (kind === "shoot") tone(760, 0.06, "triangle", 0.03);
     if (kind === "alienMove") {
@@ -174,6 +270,40 @@
       tone(400, 0.1, "sawtooth", 0.04, 0, 0.002);
       tone(640, 0.1, "triangle", 0.04, 0.08, 0.004);
     }
+  }
+
+  function playMusic() {
+    if (!kenney.music || kenney.music.played) return;
+    const p = kenney.music.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {});
+    }
+    kenney.music.played = true;
+    kenney.music.isPaused = false;
+  }
+
+  function stopMusic() {
+    if (!kenney.music) return;
+    kenney.music.isPaused = true;
+    kenney.music.pause();
+    kenney.music.currentTime = 0;
+    kenney.music.played = false;
+  }
+
+  function pauseMusic() {
+    if (!kenney.music || kenney.music.paused) return;
+    kenney.music.isPaused = true;
+    kenney.music.pause();
+  }
+
+  function resumeMusic() {
+    if (!kenney.music || !kenney.music.isPaused || state.phase !== "running") return;
+    const p = kenney.music.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => {});
+    }
+    kenney.music.isPaused = false;
+    kenney.music.played = true;
   }
 
   function resize() {
@@ -201,6 +331,8 @@
         y: Math.random() * WORLD.height,
         r: Math.random() * 1.8 + 0.5,
         s: Math.random() * 30 + 12,
+        tw: Math.random() * Math.PI * 2,
+        twSpeed: Math.random() * 2 + 0.6,
       });
     }
   }
@@ -264,7 +396,8 @@
               y: config.bunkerY + r * config.blockSize,
               w: config.blockSize - 1,
               h: config.blockSize - 1,
-              hp: 2,
+              hp: 3,
+              maxHp: 3,
             });
           }
         }
@@ -282,6 +415,35 @@
     );
   }
 
+  function bulletIntersectsRect(prevY, nextY, bullet, rect) {
+    const left = Math.min(bullet.x, bullet.x + bullet.w);
+    const right = Math.max(bullet.x, bullet.x + bullet.w);
+    const top = Math.min(prevY, nextY);
+    const bottom = Math.max(prevY + bullet.h, nextY + bullet.h);
+    return left < rect.x + rect.w && right > rect.x && top < rect.y + rect.h && bottom > rect.y;
+  }
+
+  function rgbaFromHex(hex, alpha) {
+    const v = hex.replace("#", "");
+    const r = Number.parseInt(v.slice(0, 2), 16);
+    const g = Number.parseInt(v.slice(2, 4), 16);
+    const b = Number.parseInt(v.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha)).toFixed(2)})`;
+  }
+
+  function addFloatingText(text, x, y, color = "#ffffff") {
+    state.floatingTexts.push({
+      text,
+      x,
+      y,
+      vx: -5 + Math.random() * 10,
+      vy: -22 - Math.random() * 6,
+      age: 0,
+      life: 0.95,
+      color,
+    });
+  }
+
   function spawnPlayerShot() {
     if (state.phase !== "running") return;
     if (state.bullets.filter((b) => b.alive).length >= config.maxPlayerShots) return;
@@ -295,9 +457,11 @@
       v: -config.shotSpeed,
       owner: "player",
       alive: true,
+      prevY: state.player.y - 16,
     });
     state.shotCooldown = config.playerShotCooldown;
     playSfx("shoot");
+    vibrate(5);
   }
 
   function spawnAlienShot() {
@@ -319,9 +483,11 @@
       y: shooter.y + shooter.h + 2,
       w: 3,
       h: 10,
-      v: config.alienShotSpeed,
+      v: config.alienShotSpeed + (state.level - 1) * 14,
       alive: true,
+      prevY: shooter.y + shooter.h + 2,
     });
+    playSfx("alienShot");
   }
 
   function explode(x, y, c = "rgba(200,255,140,0.8)") {
@@ -342,7 +508,7 @@
     if (state.ufo) return;
     state.spawnUfoTimer -= dt;
     if (state.spawnUfoTimer > 0) return;
-    const shouldSpawn = Math.random() < 0.45;
+    const shouldSpawn = Math.random() < config.ufoSpawnChance;
     if (shouldSpawn) {
       const fromLeft = Math.random() < 0.5;
       state.ufo = {
@@ -363,8 +529,11 @@
   function updateAliens(dt) {
     const alive = state.aliens.filter((a) => a.alive);
     if (!alive.length) return;
-    state.alienSpeed = config.baseAlienSpeed + (state.level - 1) * config.speedGrowth;
-    state.alienSpeed += (config.rows * config.cols - alive.length) * 0.55;
+    const totalAliens = config.rows * config.cols;
+    state.alienSpeed =
+      config.baseAlienSpeed +
+      (state.level - 1) * config.speedGrowth +
+      (totalAliens - alive.length) * config.speedByRemaining;
 
     let minX = Infinity;
     let maxX = -Infinity;
@@ -407,8 +576,8 @@
 
     state.alienFireTimer -= dt;
     if (state.alienFireTimer <= 0) {
-      const pace = Math.max(0.18, 1.6 - state.level * 0.13 - alive.length / 220);
-      if (Math.random() < 0.65) spawnAlienShot();
+      const pace = Math.max(0.15, 1.45 - state.level * 0.12 - alive.length / 240);
+      if (Math.random() < 0.55 + Math.min(0.30, state.level * 0.025)) spawnAlienShot();
       state.alienFireTimer = pace;
     }
 
@@ -421,13 +590,14 @@
     const removeDead = (item) => item.alive && item.y + item.h >= 0 && item.y <= WORLD.height;
 
     for (const b of state.bullets) {
+      const prevY = b.y;
       b.y += b.v * dt;
       if (state.phase !== "running") continue;
       if (b.owner === "player") {
         let hit = false;
         for (const a of state.aliens) {
           if (!a.alive || hit) continue;
-          if (rectsIntersect(b, a)) {
+          if (bulletIntersectsRect(prevY, b.y, b, a)) {
             a.alive = false;
             b.alive = false;
             hit = true;
@@ -436,20 +606,24 @@
             state.score += a.score;
             explode(px, py, "rgba(130,255,120,0.9)");
             playSfx("alienExplode");
+            addFloatingText(`+${a.score}`, px, py - 8, "#b7ffbe");
             updateHUD();
             state.best = Math.max(state.score, state.best);
             localStorage.setItem("space-invaders-best", String(state.best));
+            vibrate(8);
           }
         }
-        if (!hit && state.ufo && rectsIntersect(b, state.ufo)) {
+        if (!hit && state.ufo && bulletIntersectsRect(prevY, b.y, b, state.ufo)) {
           b.alive = false;
           state.score += state.ufo.value;
+          addFloatingText(`+${state.ufo.value}`, state.ufo.x + state.ufo.w / 2, state.ufo.y - 6, "#c4ceff");
           state.ufo = null;
           explode(state.player.x, config.ufoY + 8, "rgba(180,190,255,0.85)");
           playSfx("alienExplode");
           updateHUD();
           state.best = Math.max(state.score, state.best);
           localStorage.setItem("space-invaders-best", String(state.best));
+          vibrate([6, 24, 6]);
         }
       }
 
@@ -458,9 +632,10 @@
       }
       for (const bunker of state.bunkers) {
         for (const p of bunker) {
-          if (p.hp <= 0 || !rectsIntersect(b, p)) continue;
+          if (p.hp <= 0 || !bulletIntersectsRect(prevY, b.y, b, p)) continue;
           b.alive = false;
           p.hp -= 1;
+          explode(p.x + p.w / 2, p.y + p.h / 2, "rgba(150, 210, 120, 0.4)");
           if (p.hp <= 0) p.broken = true;
           break;
         }
@@ -469,17 +644,17 @@
     }
 
     for (const b of state.alienBullets) {
+      const prevY = b.y;
       b.y += b.v * dt;
-      if (b.owner === "alien" || state.phase !== "running") {
-        // no extra logic
-      }
+      if (state.phase !== "running") continue;
       if (!state.player || b.y > WORLD.height + 4) continue;
-      if (state.player.invulnerable <= 0 && rectsIntersect(b, state.player)) {
+      if (state.player.invulnerable <= 0 && bulletIntersectsRect(prevY, b.y, b, state.player)) {
         b.alive = false;
         state.lives -= 1;
         state.player.invulnerable = 1.3;
         explode(state.player.x + state.player.w / 2, state.player.y, "rgba(255,120,100,0.8)");
         playSfx("playerExplode");
+        vibrate([12, 18, 20]);
         if (state.lives <= 0) {
           endGame();
         } else {
@@ -489,10 +664,11 @@
       if (!b.alive) continue;
       for (const bunker of state.bunkers) {
         for (const p of bunker) {
-          if (p.hp <= 0 || !rectsIntersect(b, p)) continue;
+          if (p.hp <= 0 || !bulletIntersectsRect(prevY, b.y, b, p)) continue;
           b.alive = false;
           p.hp -= 1;
           if (p.hp <= 0) p.broken = true;
+          explode(p.x + p.w / 2, p.y + p.h / 2, "rgba(180, 120, 120, 0.45)");
           break;
         }
         if (!b.alive) break;
@@ -520,6 +696,18 @@
       if (p.age < p.life) next.push(p);
     }
     state.explosions = next;
+  }
+
+  function updateFloatingTexts(dt) {
+    const next = [];
+    for (const t of state.floatingTexts) {
+      t.age += dt;
+      t.x += t.vx * dt;
+      t.y += t.vy * dt;
+      t.vy += 28 * dt;
+      if (t.age < t.life) next.push(t);
+    }
+    state.floatingTexts = next;
   }
 
   function cleanupBunkers() {
@@ -559,6 +747,8 @@
   function endGame() {
     state.phase = "gameOver";
     UI.score.textContent = String(state.score);
+    playSfx("gameOver");
+    stopMusic();
     setOverlay("gameOver");
     state.best = Math.max(state.best, state.score);
     localStorage.setItem("space-invaders-best", String(state.best));
@@ -568,10 +758,13 @@
   function startGame() {
     if (state.phase === "running" || state.phase === "paused") return;
     ensureAudio();
+    if (kenney.music) kenney.music.currentTime = 0;
     playSfx("start");
+    playMusic();
     state.score = 0;
     state.level = 1;
     state.lives = 3;
+    state.floatingTexts = [];
     centerPlayer();
     startNewWave();
     state.phase = "ready";
@@ -619,6 +812,7 @@
     }
 
     for (const s of state.stars) {
+      s.tw += dt * s.twSpeed;
       s.y += dt * s.s;
       if (s.y > WORLD.height) {
         s.y = 0;
@@ -629,6 +823,7 @@
     updateAliens(dt);
     updateBullets(dt);
     updateExplosions(dt);
+    updateFloatingTexts(dt);
     spawnUfoIfNeeded(dt);
     cleanupBunkers();
     nextWave();
@@ -656,6 +851,27 @@
     const h = a.h;
     const frame = a.frame;
 
+    if (kenney.spriteReady && kenney.spriteSheet) {
+      const spriteGroup = kenneyAtlas.aliens[a.row] || kenneyAtlas.aliens[4];
+      const frameData = spriteGroup[frame % spriteGroup.length] || spriteGroup[0];
+      const drawW = Math.min(w, frameData.w);
+      const drawH = Math.min(h, frameData.h);
+      const offsetX = (w - drawW) / 2;
+      const offsetY = (h - drawH) / 2;
+      ctx.drawImage(
+        kenney.spriteSheet,
+        frameData.x,
+        frameData.y,
+        frameData.w,
+        frameData.h,
+        x + offsetX,
+        y + offsetY,
+        drawW,
+        drawH
+      );
+      return;
+    }
+
     ctx.strokeStyle = "#94f7b6";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -678,8 +894,9 @@
     for (const bunker of state.bunkers) {
       for (const p of bunker) {
         if (p.hp <= 0) continue;
-        const alpha = 0.4 + p.hp * 0.3;
-        ctx.fillStyle = `rgba(130, 180, 80, ${alpha})`;
+        const alpha = 0.2 + (p.hp / p.maxHp) * 0.75;
+        const fill = p.hp >= p.maxHp - 0.2 ? "#86c35e" : p.hp >= 2 ? "#a4b45a" : "#8c7a4b";
+        ctx.fillStyle = rgbaFromHex(fill, alpha);
         ctx.fillRect(p.x, p.y, p.w, p.h);
       }
     }
@@ -688,6 +905,25 @@
   function drawPlayer() {
     if (!state.player) return;
     const p = state.player;
+    if (kenney.spriteReady && kenney.spriteSheet) {
+      const frame = state.phase === "ready" ? kenneyAtlas.player[1] : kenneyAtlas.player[0];
+      const drawW = Math.min(p.w, frame.w);
+      const drawH = Math.min(p.h, frame.h);
+      const offsetX = (p.w - drawW) / 2;
+      const offsetY = (p.h - drawH) / 2;
+      ctx.drawImage(
+        kenney.spriteSheet,
+        frame.x,
+        frame.y,
+        frame.w,
+        frame.h,
+        p.x + offsetX,
+        p.y + offsetY,
+        drawW,
+        drawH
+      );
+      return;
+    }
     const blink = p.invulnerable > 0 && Math.floor(p.invulnerable * 12) % 2 === 0;
     if (blink) {
       ctx.globalAlpha = 0.3;
@@ -714,6 +950,27 @@
   function drawUFO() {
     if (!state.ufo) return;
     const u = state.ufo;
+
+    if (kenney.spriteReady && kenney.spriteSheet) {
+      const frame = kenneyAtlas.ufo;
+      const drawW = Math.min(u.w, frame.w);
+      const drawH = Math.min(u.h, frame.h);
+      const offsetX = (u.w - drawW) / 2;
+      const offsetY = (u.h - drawH) / 2;
+      ctx.drawImage(
+        kenney.spriteSheet,
+        frame.x,
+        frame.y,
+        frame.w,
+        frame.h,
+        u.x + offsetX,
+        u.y + offsetY,
+        drawW,
+        drawH
+      );
+      return;
+    }
+
     ctx.fillStyle = "#ffc24a";
     ctx.fillRect(u.x, u.y, u.w, u.h);
     ctx.fillStyle = "#6f90db";
@@ -728,6 +985,19 @@
       ctx.fillStyle = `${c},${Math.max(0.05, alpha).toFixed(2)})`;
       ctx.fillRect(p.x, p.y, 2, 2);
     }
+  }
+
+  function drawFloatingTexts() {
+    for (const t of state.floatingTexts) {
+      const alpha = 1 - t.age / t.life;
+      ctx.fillStyle = `${t.color}`;
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.font = "bold 14px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.globalAlpha = 1;
+    }
+    ctx.textAlign = "start";
   }
 
   function drawHUDText() {
@@ -746,7 +1016,9 @@
     ctx.fillRect(0, 0, WORLD.width, WORLD.height);
 
     for (const s of state.stars) {
-      ctx.fillStyle = s.r > 1.6 ? "#7f9bca" : "#4d6183";
+      const t = (Math.sin(s.tw) + 1) / 2;
+      const alpha = 0.2 + t * 0.8;
+      ctx.fillStyle = s.r > 1.6 ? `rgba(127, 155, 202, ${alpha.toFixed(2)})` : `rgba(77, 97, 131, ${alpha.toFixed(2)})`;
       ctx.fillRect(s.x, s.y, s.r, s.r);
     }
 
@@ -757,6 +1029,7 @@
       drawShots();
       drawUFO();
       drawExplosions();
+      drawFloatingTexts();
     }
     drawHUDText();
 
@@ -792,12 +1065,14 @@
       if (btn === "pause" && value) {
         if (state.phase === "running") {
           state.phase = "paused";
+          pauseMusic();
           setOverlay("title");
           UI.overlayTitle.textContent = "Paused";
           UI.overlayBody.textContent = "Game paused. Tap start to continue.";
           UI.startButton.textContent = "Resume";
         } else if (state.phase === "paused") {
           state.phase = "running";
+          resumeMusic();
           UI.overlay.classList.add("hidden");
         }
       }
@@ -850,6 +1125,12 @@
   }
 
   function handleStartAction() {
+    if (state.startGuard) return;
+    state.startGuard = true;
+    window.setTimeout(() => {
+      state.startGuard = false;
+    }, 250);
+
     ensureAudio();
     hideOverlay();
     if (state.phase === "title" || state.phase === "gameOver") {
@@ -863,6 +1144,7 @@
     }
     if (state.phase === "paused") {
       state.phase = "running";
+      resumeMusic();
       hideOverlay();
     }
   }
