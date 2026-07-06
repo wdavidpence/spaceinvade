@@ -840,7 +840,6 @@
   function handleStartAction() {
     ensureAudio();
     if (state.phase === "title" || state.phase === "gameOver") {
-      state.phase = "running";
       startGame();
       return;
     }
@@ -865,6 +864,10 @@
       handleStartAction();
     });
     UI.startButton.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      handleStartAction();
+    });
+    UI.startButton.addEventListener("touchend", (e) => {
       e.preventDefault();
       handleStartAction();
     });
