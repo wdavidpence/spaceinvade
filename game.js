@@ -113,6 +113,10 @@
     }
   }
 
+  function hideOverlay() {
+    UI.overlay.classList.add("hidden");
+  }
+
   function updateHUD() {
     UI.score.textContent = String(state.score);
     UI.best.textContent = String(state.best);
@@ -123,9 +127,15 @@
   function ensureAudio() {
     if (audioCtx) return;
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new Ctx();
+    if (!Ctx) return;
+    try {
+      audioCtx = new Ctx();
+    } catch (_e) {
+      audioCtx = null;
+      return;
+    }
     if (audioCtx.state === "suspended") {
-      audioCtx.resume();
+      audioCtx.resume().catch(() => {});
     }
   }
 
@@ -839,6 +849,7 @@
 
   function handleStartAction() {
     ensureAudio();
+    hideOverlay();
     if (state.phase === "title" || state.phase === "gameOver") {
       startGame();
       return;
@@ -864,6 +875,10 @@
       handleStartAction();
     });
     UI.startButton.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      handleStartAction();
+    });
+    UI.startButton.addEventListener("pointerup", (e) => {
       e.preventDefault();
       handleStartAction();
     });
