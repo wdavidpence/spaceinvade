@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="description" content="HTML5 mobile Space Invaders clone." />
+    <title>Space Invaders (HTML5)</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="title-bar">
+        <div class="title">Space Invaders</div>
+        <div class="subtitle">iPhone first clone</div>
+      </header>
+      <main class="game-area">
+        <canvas id="gameCanvas" aria-label="Space Invaders game canvas"></canvas>
+        <div id="hud" aria-live="polite">
+          <div id="scoreLine">Score: <span id="scoreValue">0</span></div>
+          <div id="bestLine">Best: <span id="bestValue">0</span></div>
+          <div id="levelLine">Wave: <span id="levelValue">1</span></div>
+          <div id="livesLine">Lives: <span id="livesValue">3</span></div>
+        </div>
+        <div id="overlay" class="overlay hidden">
+          <div class="overlay-inner">
+            <h1 id="overlayTitle">Space Invaders</h1>
+            <p id="overlayBody">
+              Move: left/right buttons · Shoot: fire button<br />
+              Or use arrow keys + Space on desktop.
+            </p>
+            <button id="startButton">Tap to Start</button>
+          </div>
+        </div>
+        <div id="touchControls">
+          <div class="left-controls">
+            <button id="leftBtn" class="control-btn"> < </button>
+            <button id="rightBtn" class="control-btn"> > </button>
+          </div>
+          <button id="fireBtn" class="control-btn fire-btn">Fire</button>
+          <button id="pauseBtn" class="control-btn">Pause</button>
+        </div>
+      </main>
+    </div>
+    <script src="game.js"></script>
+  </body>
+</html>
