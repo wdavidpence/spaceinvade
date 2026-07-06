@@ -837,19 +837,36 @@
     window.addEventListener("resize", resize);
   }
 
+  function handleStartAction() {
+    ensureAudio();
+    if (state.phase === "title" || state.phase === "gameOver") {
+      state.phase = "running";
+      startGame();
+      return;
+    }
+    if (state.phase === "ready") {
+      state.phase = "running";
+      UI.overlay.classList.add("hidden");
+      return;
+    }
+    if (state.phase === "paused") {
+      state.phase = "running";
+      UI.overlay.classList.add("hidden");
+    }
+  }
+
   function bindOverlay() {
-    UI.startButton.addEventListener("click", () => {
-      ensureAudio();
-      if (state.phase === "title" || state.phase === "gameOver") {
-        state.phase = "running";
-        startGame();
-      } else if (state.phase === "ready") {
-        state.phase = "running";
-        UI.overlay.classList.add("hidden");
-      } else if (state.phase === "paused") {
-        state.phase = "running";
-        UI.overlay.classList.add("hidden");
-      }
+    UI.startButton.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      handleStartAction();
+    });
+    UI.startButton.addEventListener("click", (e) => {
+      e.preventDefault();
+      handleStartAction();
+    });
+    UI.startButton.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      handleStartAction();
     });
   }
 
