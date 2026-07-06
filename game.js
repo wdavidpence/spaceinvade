@@ -95,6 +95,7 @@
   const starCount = 64;
 
   function setOverlay(phase) {
+    UI.overlay.style.display = "";
     if (phase === "title") {
       UI.overlayTitle.textContent = "Space Invaders";
       UI.overlayBody.textContent =
@@ -115,6 +116,7 @@
 
   function hideOverlay() {
     UI.overlay.classList.add("hidden");
+    UI.overlay.style.display = "none";
   }
 
   function updateHUD() {
@@ -856,36 +858,29 @@
     }
     if (state.phase === "ready") {
       state.phase = "running";
-      UI.overlay.classList.add("hidden");
+      hideOverlay();
       return;
     }
     if (state.phase === "paused") {
       state.phase = "running";
-      UI.overlay.classList.add("hidden");
+      hideOverlay();
     }
   }
 
   function bindOverlay() {
-    UI.startButton.addEventListener("pointerdown", (e) => {
+    const startFromOverlay = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       handleStartAction();
-    });
-    UI.startButton.addEventListener("click", (e) => {
-      e.preventDefault();
-      handleStartAction();
-    });
-    UI.startButton.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      handleStartAction();
-    });
-    UI.startButton.addEventListener("pointerup", (e) => {
-      e.preventDefault();
-      handleStartAction();
-    });
-    UI.startButton.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      handleStartAction();
-    });
+    };
+    const options = { passive: false };
+    for (const el of [UI.overlay, UI.startButton]) {
+      el.addEventListener("pointerdown", startFromOverlay, options);
+      el.addEventListener("pointerup", startFromOverlay, options);
+      el.addEventListener("touchstart", startFromOverlay, options);
+      el.addEventListener("touchend", startFromOverlay, options);
+      el.addEventListener("click", startFromOverlay);
+    }
   }
 
   function preload() {
