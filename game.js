@@ -145,6 +145,14 @@
   };
 
   const starCount = 64;
+  const qaMode = (() => {
+    if (typeof window === "undefined" || !window.location) return false;
+    try {
+      return new URLSearchParams(window.location.search).has("qa");
+    } catch (_e) {
+      return false;
+    }
+  })();
 
   function setOverlay(phase) {
     if (phase === "title") {
@@ -167,6 +175,104 @@
 
   function hideOverlay() {
     UI.overlay.classList.add("hidden");
+  }
+
+  function snapshotState(label = "") {
+    const aliveAliens = state.aliens.filter((a) => a.alive).length;
+    return {
+      label,
+      phase: state.phase,
+      score: state.score,
+      level: state.level,
+      lives: state.lives,
+      readyTimer: state.readyTimer,
+      spawnUfoTimer: state.spawnUfoTimer,
+      alienMoveTimer: state.alienMoveTimer,
+      alienFireTimer: state.alienFireTimer,
+      overlayHidden: UI.overlay.classList.contains("hidden"),
+      overlayTitle: UI.overlayTitle.textContent,
+      overlayBody: UI.overlayBody.textContent,
+      startText: UI.startButton.textContent,
+      bullets: state.bullets.length,
+      alienBullets: state.alienBullets.length,
+      floatingTexts: state.floatingTexts.length,
+      aliveAliens,
+      totalAliens: state.aliens.length,
+      ufoActive: !!state.ufo,
+      player: state.player
+        ? {
+            x: Number(state.player.x.toFixed(2)),
+            y: Number(state.player.y.toFixed(2)),
+            invulnerable: Number(state.player.invulnerable.toFixed(2)),
+          }
+        : null,
+      music: kenney.music
+        ? {
+            hasMusic: true,
+            paused: kenney.music.paused,
+            played: kenney.music.played,
+            isPaused: kenney.music.isPaused,
+          }
+        : { hasMusic: false },
+    };
+  }
+
+  function stepFrames(count, dt = 1 / 60) {
+    const safeDt = Math.max(0.001, Math.min(0.05, dt));
+    for (let i = 0; i < count; i += 1) {
+      update(safeDt);
+      render();
+    }
+  }
+
+  function runRegressionSweep() {
+    const checkpoints = [];
+    const checkpoint = (label) => {
+      const s = snapshotState(label);
+      checkpoints.push(s);
+      return s;
+    };
+
+    checkpoint("initial-title");
+
+    state.startGuard = false;
+    startGame();
+    checkpoint("start-game-requested");
+    stepFrames(12);
+    checkpoint("running");
+
+    forceKillAllAliens();
+    stepFrames(12);
+    checkpoint("wave-cleared");
+
+    state.phase = "ready";
+    state.readyTimer = 0.9;
+    setOverlay("ready");
+    stepFrames(20);
+    checkpoint("ready");
+
+    forceGameOver();
+    checkpoint("game-over");
+
+    return checkpoints;
+  }
+
+  function forceKillAllAliens() {
+    for (const a of state.aliens) {
+      a.alive = false;
+    }
+  }
+
+  function forcePlayerFire() {
+    spawnPlayerShot();
+  }
+
+  function forceAliensShoot() {
+    spawnAlienShot();
+  }
+
+  function forceGameOver() {
+    endGame();
   }
 
   function updateHUD() {
@@ -1178,6 +1284,21 @@
     resize();
     bindControls();
     bindOverlay();
+    if (qaMode) {
+      window.__spaceInvadersDebug = {
+        snapshot: snapshotState,
+        stepFrames,
+        runRegressionSweep,
+        forceGameOver,
+        forceKillAllAliens,
+        forcePlayerFire,
+        forceAliensShoot,
+        setPhase: (phase) => {
+          state.phase = phase;
+        },
+        getState: () => snapshotState("debug"),
+      };
+    }
     window.requestAnimationFrame(loop);
   }
 

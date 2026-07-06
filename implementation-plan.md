@@ -71,4 +71,4 @@ Local Kenney assets have been located and a first-pass sprite/audio integration 
     - Run a scripted playthrough sweep across pass/ready/running/game-over states and capture screenshot checkpoints.
 
 Completed so far in this run:
-1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19.
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20.
